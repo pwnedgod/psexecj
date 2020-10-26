@@ -6,243 +6,251 @@ import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertArrayEquals;
 
 public class BinaryExecutableExecutorTest {
 
     /**
      * Invoke {@link BinaryExecutableExecutor#craft(Command)} with the specified command. For testing purposes.
+     *
      * @param executor the {@link BinaryExecutableExecutor} instance
-     * @param command the command to craft with
+     * @param command  the command to craft with
      * @return the crafted command
      */
-    private static String invokeCraft(BinaryExecutableExecutor executor, Command command) {
+    private static String[] invokeCraft(BinaryExecutableExecutor executor, Command command) {
         try {
             Method craftMethod = BinaryExecutableExecutor.class
                     .getDeclaredMethod("craft", Command.class);
             craftMethod.setAccessible(true);
-            return (String) craftMethod.invoke(executor, command);
+            return (String[]) craftMethod.invoke(executor, command);
         } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
-            return null;
+            throw new RuntimeException("There was a problem invoking craft", e);
         }
     }
 
     /**
      * Get a path to a dummy exe file. Does not have to exist.
+     *
      * @return the dummy file instance
      */
     private static File dummyExeFile() {
-        return new File("C:\\PsExec.exe");
+        return new File("C:\\PSTools\\PsExec.exe");
     }
 
     /**
      * Get a dummy instance of {@link BinaryExecutableExecutor}.
+     *
      * @param exeFile the exe file to use
      * @return the executor instance
      */
-    private static BinaryExecutableExecutor dummyInstance(File exeFile) {
+    private static BinaryExecutableExecutor dummyExecutor(File exeFile) {
         return new BinaryExecutableExecutor(exeFile);
     }
 
     /**
      * Assert equality between the given command's crafted string and
      * the given string, concatenated as an argument.
-     * @param command The command to craft with
-     * @param psExecArguments the string, concatenated as an argument, to check against
+     *
+     * @param expectedArgs  the string, concatenated as an argument, to check against
+     * @param actualCommand The command to craft with
      */
-    private static void assertCraftEquals(Command command, String psExecArguments) {
+    private static void assertCraftEquals(String[] expectedArgs, Command actualCommand) {
         File exeFile = dummyExeFile();
-        BinaryExecutableExecutor executor = dummyInstance(exeFile);
+        BinaryExecutableExecutor executor = dummyExecutor(exeFile);
 
-        assertEquals(
-                invokeCraft(executor, command),
-                "\"" + exeFile.getAbsolutePath() + "\" " + psExecArguments
-        );
+        String[] cmdarray = new String[expectedArgs.length + 3];
+        cmdarray[0] = exeFile.getAbsolutePath();
+        cmdarray[1] = "-accepteula";
+        cmdarray[2] = "-nobanner";
+
+        System.arraycopy(expectedArgs, 0, cmdarray, 3, expectedArgs.length);
+
+        assertArrayEquals(cmdarray, invokeCraft(executor, actualCommand));
     }
 
     @Test
     public void craft_MatchesResult_GivenCmd() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .build();
 
-        assertCraftEquals(command, "\"ping\"");
+        assertCraftEquals(new String[]{"dir"}, command);
     }
 
     @Test
     public void craft_MatchesResult_GivenCmdAndComputers() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .computer("10.22.101.101")
                 .computer("10.22.101.102")
                 .computer("10.22.101.103")
                 .build();
 
-        assertCraftEquals(command, "\\\\10.22.101.101,10.22.101.102,10.22.101.103 \"ping\"");
+        assertCraftEquals(new String[]{"\\\\10.22.101.101,10.22.101.102,10.22.101.103", "dir"}, command);
     }
 
     @Test
     public void craft_MatchesResult_GivenCmdUsernameAndPassword() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .username("root")
                 .password("Testing123")
                 .build();
 
-        assertCraftEquals(command, "-u \"root\" -p \"Testing123\" \"ping\"");
+        assertCraftEquals(new String[]{"-u", "root", "-p", "Testing123", "dir"}, command);
     }
 
     @Test
     public void craft_MatchesResultWithoutPassword_GivenCmdAndPassword() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .password("Testing123")
                 .build();
 
-        assertCraftEquals(command, "\"ping\"");
+        assertCraftEquals(new String[]{"dir"}, command);
     }
 
     @Test
     public void craft_MatchesResult_GivenCmdAndTimeout() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .timeout(60)
                 .build();
 
-        assertCraftEquals(command, "-n 60 \"ping\"");
+        assertCraftEquals(new String[]{"-n", "60", "dir"}, command);
     }
 
     @Test
     public void craft_MatchesResult_GivenCmdAndServiceName() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .serviceName("DummyService")
                 .build();
 
-        assertCraftEquals(command, "-r \"DummyService\" \"ping\"");
+        assertCraftEquals(new String[]{"-r", "DummyService", "dir"}, command);
     }
 
     @Test
     public void craft_MatchesResult_GivenCmdAndRunElevated() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .runElevated(true)
                 .build();
 
-        assertCraftEquals(command, "-h \"ping\"");
+        assertCraftEquals(new String[]{"-h", "dir"}, command);
     }
 
     @Test
     public void craft_MatchesResult_GivenCmdAndRunLimited() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .runLimited(true)
                 .build();
 
-        assertCraftEquals(command, "-l \"ping\"");
+        assertCraftEquals(new String[]{"-l", "dir"}, command);
     }
 
     @Test
     public void craft_MatchesResult_GivenCmdAndAsSystem() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .asSystem(true)
                 .build();
 
-        assertCraftEquals(command, "-s \"ping\"");
+        assertCraftEquals(new String[]{"-s", "dir"}, command);
     }
 
     @Test
     public void craft_MatchesResult_GivenCmdAndDoNotLoadProfile() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .doNotLoadProfile(true)
                 .build();
 
-        assertCraftEquals(command, "-e \"ping\"");
+        assertCraftEquals(new String[]{"-e", "dir"}, command);
     }
 
     @Test
     public void craft_MatchesResultWithoutAsSystem_GivenCmdAsSystemAndDoNotLoadProfile() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .asSystem(true)
                 .doNotLoadProfile(true)
                 .build();
 
-        assertCraftEquals(command, "-e \"ping\"");
+        assertCraftEquals(new String[]{"-e", "dir"}, command);
     }
 
     @Test
     public void craft_MatchesResult_GivenCmdCopy() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .copy(true)
                 .build();
 
-        assertCraftEquals(command, "-c \"ping\"");
+        assertCraftEquals(new String[]{"-c", "dir"}, command);
     }
 
     @Test
     public void craft_MatchesResult_GivenCmdCopyAndCopyOverrideAlways() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .copy(true)
                 .copyOverride(Command.COPY_OVERRIDE_ALWAYS)
                 .build();
 
-        assertCraftEquals(command, "-c -f \"ping\"");
+        assertCraftEquals(new String[]{"-c", "-f", "dir"}, command);
     }
 
     @Test
     public void craft_MatchesResult_GivenCmdCopyAndCopyOverrideNewer() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .copy(true)
                 .copyOverride(Command.COPY_OVERRIDE_NEWER)
                 .build();
 
-        assertCraftEquals(command, "-c -v \"ping\"");
+        assertCraftEquals(new String[]{"-c", "-v", "dir"}, command);
     }
 
     @Test
     public void craft_MatchesResult_GivenCmdAndDetach() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .detach(true)
                 .build();
 
-        assertCraftEquals(command, "-d \"ping\"");
+        assertCraftEquals(new String[]{"-d", "dir"}, command);
     }
 
     @Test
     public void craft_MatchesResult_GivenCmdAndWorkingDirectory() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .workingDirectory("C:\\Windows\\SysWOW64")
                 .build();
 
-        assertCraftEquals(command, "-w \"C:\\Windows\\SysWOW64\" \"ping\"");
+        assertCraftEquals(new String[]{"-w", "C:\\Windows\\SysWOW64", "dir"}, command);
     }
 
     @Test
     public void craft_MatchesResult_GivenCmdAndBackgroundPriority() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .priority(Command.PRIORITY_BACKGROUND)
                 .build();
 
-        assertCraftEquals(command, "-background \"ping\"");
+        assertCraftEquals(new String[]{"-background", "dir"}, command);
     }
 
     @Test
     public void craft_MatchesResult_GivenCmdAndProcessors() {
         Command command = Command.prepare()
-                .cmd("ping")
+                .cmd("dir")
                 .processors(new int[]{1, 2})
                 .build();
 
-        assertCraftEquals(command, "-a 1,2 \"ping\"");
+        assertCraftEquals(new String[]{"-a", "1,2", "dir"}, command);
     }
 
     @Test
@@ -252,7 +260,7 @@ public class BinaryExecutableExecutorTest {
                 .arguments("-n 10 localhost")
                 .build();
 
-        assertCraftEquals(command, "\"ping\" -n 10 localhost");
+        assertCraftEquals(new String[]{"ping", "-n", "10", "localhost"}, command);
     }
 
     @Test
@@ -267,7 +275,14 @@ public class BinaryExecutableExecutorTest {
                 .arguments("-n 15 localhost")
                 .build();
 
-        assertCraftEquals(command, "\\\\10.22.101.101 -u \"root\" -p \"Testing\" -i 1 -d \"ping\" -n 15 localhost");
+        assertCraftEquals(new String[]{
+                "\\\\10.22.101.101",
+                "-u", "root",
+                "-p", "Testing",
+                "-i", "1",
+                "-d",
+                "ping", "-n", "15", "localhost"
+        }, command);
     }
 
 }

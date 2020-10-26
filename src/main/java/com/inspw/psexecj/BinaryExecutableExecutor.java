@@ -5,8 +5,9 @@ import lombok.Setter;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Formatter;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Getter
 @Setter
@@ -26,8 +27,21 @@ public class BinaryExecutableExecutor implements Executor {
     private int executeTimeout;
 
     /**
+     * Suppress the display of the license dialog.
+     * This is specific to the PsExec.exe implementation.
+     */
+    private boolean acceptEula = true;
+
+    /**
+     * Do not display the startup banner and copyright message.
+     * This is specific to the PsExec.exe implementation.
+     */
+    private boolean noBanner = true;
+
+    /**
      * Create a command executor instance.
-     * @param exeFile the executable file to use
+     *
+     * @param exeFile        the executable file to use
      * @param executeTimeout the timeout in milliseconds
      */
     public BinaryExecutableExecutor(File exeFile, int executeTimeout) {
@@ -37,6 +51,7 @@ public class BinaryExecutableExecutor implements Executor {
 
     /**
      * Create a command executor instance with no timeout.
+     *
      * @param exeFile the executable file to use.
      */
     public BinaryExecutableExecutor(File exeFile) {
@@ -49,130 +64,150 @@ public class BinaryExecutableExecutor implements Executor {
      * @param command the command to craft with
      * @return the crafted string of the command
      */
-    private String craft(Command command) {
-        Formatter formatter = new Formatter();
-        formatter.format("\"%s\"", getExeFile().getAbsolutePath());
+    private String[] craft(Command command) {
+        List<String> tokens = new ArrayList<>();
+        tokens.add(getExeFile().getAbsolutePath());
+
+        if (isAcceptEula()) {
+            tokens.add("-accepteula");
+        }
+
+        if (isNoBanner()) {
+            tokens.add("-nobanner");
+        }
 
         if (!command.computers().isEmpty() && command.computerListFile() == null) {
-            formatter.format(" \\\\%s", String.join(",", command.computers()));
+            tokens.add(String.format("\\\\%s", String.join(",", command.computers())));
         }
 
         if (command.computerListFile() != null) {
-            formatter.format(" @\"%s\"", command.computerListFile());
+            tokens.add(String.format("@\"%s\"", command.computerListFile()));
         }
 
         if (command.username() != null) {
-            formatter.format(" -u \"%s\"", command.username());
+            tokens.add("-u");
+            tokens.add(command.username());
 
             if (command.password() != null) {
-                formatter.format(" -p \"%s\"", command.password());
+                tokens.add("-p");
+                tokens.add(command.password());
             }
         }
 
         if (command.timeout() > 0) {
-            formatter.format(" -n %d", command.timeout());
+            tokens.add("-n");
+            tokens.add(Integer.toString(command.timeout()));
         }
 
         if (command.serviceName() != null) {
-            formatter.format(" -r \"%s\"", command.serviceName());
+            tokens.add("-r");
+            tokens.add(command.serviceName());
         }
 
         if (command.runElevated()) {
-            formatter.format(" -h");
+            tokens.add("-h");
         }
 
         if (command.runLimited()) {
-            formatter.format(" -l");
+            tokens.add("-l");
         }
 
         if (command.asSystem() && !command.doNotLoadProfile()) {
-            formatter.format(" -s");
+            tokens.add("-s");
         }
 
         if (command.doNotLoadProfile()) {
-            formatter.format(" -e");
+            tokens.add("-e");
         }
 
         if (command.logonUI()) {
-            formatter.format(" -x");
+            tokens.add("-x");
         }
 
         if (command.session() != Command.SESSION_NONE) {
-            formatter.format(" -i");
+            tokens.add("-i");
 
             if (command.session() != Command.SESSION_ANY) {
-                formatter.format(" %d", command.session());
+                tokens.add(Integer.toString(command.session()));
             }
         }
 
         if (command.copy()) {
-            formatter.format(" -c");
+            tokens.add("-c");
 
             switch (command.copyOverride()) {
                 case Command.COPY_OVERRIDE_ALWAYS:
-                    formatter.format(" -f");
+                    tokens.add("-f");
                     break;
                 case Command.COPY_OVERRIDE_NEWER:
-                    formatter.format(" -v");
+                    tokens.add("-v");
                     break;
             }
         }
 
         if (command.workingDirectory() != null) {
-            formatter.format(" -w \"%s\"", command.workingDirectory());
+            tokens.add("-w");
+            tokens.add(command.workingDirectory());
         }
 
         if (command.detach()) {
-            formatter.format(" -d");
+            tokens.add("-d");
         }
 
         switch (command.priority()) {
             case Command.PRIORITY_BACKGROUND:
-                formatter.format(" -background");
+                tokens.add("-background");
                 break;
             case Command.PRIORITY_LOW:
-                formatter.format(" -low");
+                tokens.add("-low");
                 break;
             case Command.PRIORITY_BELOW_NORMAL:
-                formatter.format(" -belownormal");
+                tokens.add("-belownormal");
                 break;
             case Command.PRIORITY_ABOVE_NORMAL:
-                formatter.format(" -abovenormal");
+                tokens.add("-abovenormal");
                 break;
             case Command.PRIORITY_HIGH:
-                formatter.format(" -high");
+                tokens.add("-high");
                 break;
             case Command.PRIORITY_REALTIME:
-                formatter.format(" -realtime");
+                tokens.add("-realtime");
                 break;
         }
 
         if (command.processors() != null) {
-            String[] processors = new String[command.processors().length];
-
-            for (int i = 0; i < command.processors().length; i++) {
-                processors[i] = Integer.toString(command.processors()[i]);
-            }
-
-            formatter.format(" -a %s", String.join(",", processors));
+            tokens.add("-a");
+            tokens.add(Arrays.stream(command.processors())
+                    .mapToObj(Integer::toString)
+                    .collect(Collectors.joining(","))
+            );
         }
 
-        formatter.format(" \"%s\"", command.cmd() == null ? "" : command.cmd());
+        if (command.cmd() == null) {
+            throw new NullPointerException();
+        }
+
+        tokens.add(command.cmd());
 
         if (command.arguments() != null) {
-            formatter.format(" %s", command.arguments());
+            for (StringTokenizer st = new StringTokenizer(command.arguments()); st.hasMoreTokens(); ) {
+                tokens.add(st.nextToken());
+            }
         }
 
-        return formatter.toString();
+        String[] cmdarray = new String[tokens.size()];
+        tokens.toArray(cmdarray);
+
+        return cmdarray;
     }
 
     @Override
     public int execute(Command command) throws IOException {
-        String craftedCommand = craft(command);
-
         Runtime rt = Runtime.getRuntime();
+
         try {
-            Process proc = rt.exec(craftedCommand);
+            String[] cmdarray = craft(command);
+            Process proc = rt.exec(cmdarray);
 
             if (getExecuteTimeout() <= 0) {
                 proc.waitFor();
