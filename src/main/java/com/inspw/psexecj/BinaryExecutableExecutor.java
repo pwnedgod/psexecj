@@ -190,9 +190,7 @@ public class BinaryExecutableExecutor implements Executor {
         tokens.add(command.cmd());
 
         if (command.arguments() != null) {
-            for (StringTokenizer st = new StringTokenizer(command.arguments()); st.hasMoreTokens(); ) {
-                tokens.add(st.nextToken());
-            }
+            Collections.addAll(tokens, command.arguments());
         }
 
         String[] cmdarray = new String[tokens.size()];

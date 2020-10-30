@@ -174,9 +174,9 @@ public class Command {
     private final String cmd;
 
     /**
-     * The arguments to pass when executing the command.
+     * The tokens of arguments to pass when executing the command.
      */
     @Builder.Default
-    private final String arguments = null;
+    private final String[] arguments = null;
 
 }
