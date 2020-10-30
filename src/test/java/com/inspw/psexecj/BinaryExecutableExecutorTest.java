@@ -257,7 +257,7 @@ public class BinaryExecutableExecutorTest {
     public void craft_MatchesResult_GivenCmdAndArguments() {
         Command command = Command.prepare()
                 .cmd("ping")
-                .arguments("-n 10 localhost")
+                .arguments(new String[]{"-n", "10", "localhost"})
                 .build();
 
         assertCraftEquals(new String[]{"ping", "-n", "10", "localhost"}, command);
@@ -272,7 +272,7 @@ public class BinaryExecutableExecutorTest {
                 .password("Testing")
                 .session(1)
                 .detach(true)
-                .arguments("-n 15 localhost")
+                .arguments(new String[]{"-n", "15", "localhost"})
                 .build();
 
         assertCraftEquals(new String[]{
