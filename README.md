@@ -15,7 +15,7 @@ Command command = Command.prepare()
         .username("Administrator")
         .password("MyAdministratorPassword")
         .session(Command.SESSION_ANY)
-        .arguments("user \"SomeOtherUser\" \"NewPassword\"")
+        .arguments(new String[]{"user", "SomeOtherUser", "NewPassword"})
         .build();
 ```
 Pass in your command to the executor instance.
